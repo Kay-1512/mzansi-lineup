@@ -14,6 +14,31 @@ def compute_dedupe_key(title, start, venue):
     return "|".join([slugify(title), start.date().isoformat(), slugify(venue)])
 
 
+def _find_cross_source_match(title, start, city):
+    """Fallback for when two platforms list the same show under slightly
+    different venue strings (e.g. "Grand Arena" vs "GrandWest Grand Arena"),
+    so compute_dedupe_key()'s exact match misses it.
+
+    Matches on same title-slug + same date, and — only when both sides have
+    a city — the same city too, so two unrelated same-day, same-title events
+    in different cities (a generic name like "Open Mic Night" could easily
+    collide) aren't merged into one.
+    """
+    title_slug = slugify(title)
+    candidates = Event.objects.filter(start__date=start.date())
+    for candidate in candidates:
+        if slugify(candidate.title) != title_slug:
+            continue
+        if (
+            city
+            and candidate.city
+            and city.strip().lower() != candidate.city.strip().lower()
+        ):
+            continue
+        return candidate
+    return None
+
+
 def upsert_normalised_event(source_slug, normalised):
     """Insert or update the shared Event row for one normalised item, and
     attach/refresh its per-source EventListing. Returns (event, created).
@@ -35,8 +60,17 @@ def upsert_normalised_event(source_slug, normalised):
         is_international=normalised.is_international,
     )
 
-    event, created = Event.objects.get_or_create(dedupe_key=dedupe_key, defaults=fields)
-    if not created:
+    event = Event.objects.filter(dedupe_key=dedupe_key).first()
+    if event is None:
+        event = _find_cross_source_match(
+            normalised.title, normalised.start, normalised.city
+        )
+
+    if event is None:
+        event = Event.objects.create(dedupe_key=dedupe_key, **fields)
+        created = True
+    else:
+        created = False
         for field_name, value in fields.items():
             setattr(event, field_name, value)
         event.save(update_fields=list(fields.keys()) + ["updated_at"])

@@ -2,11 +2,13 @@ from django.core.management.base import BaseCommand
 
 from apps.catalog.models import Source
 from apps.events.fetchers.howler import HowlerFetcher
+from apps.events.fetchers.quicket import QuicketFetcher
 from apps.events.fetchers.ticketmaster import TicketmasterFetcher
 
-# Add an entry here when a new source gets a real fetcher (Quicket in Phase 2).
+# Add an entry here when a new source gets a fetcher.
 FETCHER_CLASSES = {
     "ticketmaster": TicketmasterFetcher,
+    "quicket": QuicketFetcher,
     "howler": HowlerFetcher,
 }
 

@@ -38,6 +38,11 @@ class EventListView(APIView):
             OpenApiParameter(
                 "genre", str, description="Genre slug to additionally filter by."
             ),
+            OpenApiParameter(
+                "source",
+                str,
+                description="Source slug to narrow to, within the user's onboarding sources.",
+            ),
             OpenApiParameter("sort", str, description='"date" (default) or "match".'),
             OpenApiParameter("page", int),
             OpenApiParameter("page_size", int),
@@ -55,12 +60,29 @@ class EventListView(APIView):
         source_slugs = set(
             UserSource.objects.filter(user=user).values_list("source__slug", flat=True)
         )
-        if source_slugs:
+        requested_source = request.query_params.get("source")
+        if requested_source:
+            # The filter bar only ever offers the user's own onboarding
+            # sources, so this always narrows within that set — including
+            # down to zero results if, say, their onboarding selection
+            # changed in another tab since the filter bar was last loaded.
+            source_slugs = (
+                {requested_source}
+                if not source_slugs
+                else source_slugs & {requested_source}
+            )
+            qs = qs.filter(listings__source__slug__in=source_slugs).distinct()
+        elif source_slugs:
             qs = qs.filter(listings__source__slug__in=source_slugs).distinct()
 
-        city = request.query_params.get("city") or (
-            user.profile.get_city_display() if user.profile.city else None
-        )
+        # An explicit `city=` (empty string — "Any city" in the filter bar)
+        # must override the profile default, so this can't just be
+        # `.get("city") or <default>` — that can't tell "not sent" apart
+        # from "sent empty".
+        if "city" in request.query_params:
+            city = request.query_params.get("city")
+        else:
+            city = user.profile.get_city_display() if user.profile.city else None
         if city:
             qs = qs.filter(city__iexact=city)
 

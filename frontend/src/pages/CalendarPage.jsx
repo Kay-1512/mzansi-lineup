@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getGenres } from "../api/catalog";
 import * as eventsApi from "../api/events";
 import CalendarView from "../components/CalendarView";
+import FilterBar, { EMPTY_FILTERS } from "../components/FilterBar";
 import ListView from "../components/ListView";
 import ManualEventModal from "../components/ManualEventModal";
 import ViewToggle from "../components/ViewToggle";
@@ -18,6 +20,8 @@ export default function CalendarPage() {
   const [view, setView] = useState(loadView);
   const [tab, setTab] = useState("for-you");
   const [sort, setSort] = useState("date");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [genres, setGenres] = useState([]);
   const [forYou, setForYou] = useState([]);
   const [saved, setSaved] = useState([]);
   const [manual, setManual] = useState([]);
@@ -30,7 +34,14 @@ export default function CalendarPage() {
   }
 
   async function loadForYou() {
-    const data = await eventsApi.getForYouEvents({ sort });
+    const params = { sort };
+    for (const [key, value] of Object.entries(filters)) {
+      // `city` always needs to be sent, even empty ("Any city" overriding
+      // the profile default) — see EventListView's handling of it. The
+      // other filters have no such default to override, so omit when unset.
+      if (value || key === "city") params[key] = value;
+    }
+    const data = await eventsApi.getForYouEvents(params);
     setForYou(data.results);
   }
 
@@ -44,10 +55,14 @@ export default function CalendarPage() {
   }
 
   useEffect(() => {
+    getGenres().then(setGenres);
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     Promise.all([loadForYou(), loadSaved()]).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort]);
+  }, [sort, filters]);
 
   async function handleSave(event) {
     await eventsApi.saveEvent(event.id);
@@ -120,6 +135,15 @@ export default function CalendarPage() {
           + Add event
         </button>
       </div>
+
+      {tab === "for-you" && (
+        <FilterBar
+          genres={genres}
+          sources={profile?.sources || []}
+          filters={filters}
+          onChange={setFilters}
+        />
+      )}
 
       {loading ? (
         <p className="empty-state">Loading your lineup…</p>

@@ -6,10 +6,13 @@ scheduled fetcher pulls every SA music event into one shared table, and each
 user sees only the events that match their taste, with a reason why
 ("Because you follow Tyla").
 
-**Status: Phase 1 (MVP)** — auth, onboarding, the Ticketmaster fetcher,
-per-user scoring, the calendar/list UI, save/hide and manual events are all
-in. Quicket, de-duplication-across-sources polish, the filter bar, and
-Celery-based scheduling are Phase 2+ (see "Roadmap" below).
+**Status: Phase 2.** Phase 1 (auth, onboarding, the Ticketmaster fetcher,
+per-user scoring, the calendar/list UI, save/hide, manual events, the
+profile page and match-reason labels) is done, plus a first pass at Phase
+2: a Quicket fetcher (best-effort — see "Known limitations" below), a
+cross-source de-duplication fallback, and the genre/source/city/date filter
+bar. Remaining Phase 2 polish and Phase 3+ (LLM scoring, Spotify import,
+Google sign-in, calendar export, Celery) are still ahead — see "Roadmap".
 
 ## Architecture
 
@@ -19,7 +22,7 @@ Celery-based scheduling are Phase 2+ (see "Roadmap" below).
   request — it only reads from Postgres.
 - **One fetcher class per platform**, behind `BaseFetcher.fetch()` /
   `.normalise()` ([apps/events/fetchers/base.py](backend/apps/events/fetchers/base.py)).
-  Adding Quicket in Phase 2 means writing one new subclass.
+  Ticketmaster and Quicket both implement it now; Howler is still a stub.
 - **Scoring is computed per request, not stored.** A pluggable pipeline
   ([apps/events/scoring/](backend/apps/events/scoring)) scores a `(user,
   event)` pair: watched artist (100) > genre keyword match (50) =
@@ -28,6 +31,13 @@ Celery-based scheduling are Phase 2+ (see "Roadmap" below).
 - **Genres are admin-managed.** Each `Genre` has hidden `GenreKeyword`s
   matched case-insensitively against an event's title/description/artists —
   source genre tags (when platforms even have them) aren't trusted.
+- **Cross-source de-duplication has two tiers**
+  ([apps/events/fetchers/dedupe.py](backend/apps/events/fetchers/dedupe.py)):
+  an exact title+date+venue key, and a fallback that matches on title+date+
+  city alone, so the same show listed on two platforms under slightly
+  different venue strings (e.g. "Grand Arena" vs "GrandWest Grand Arena")
+  still collapses into one `Event` with two `EventListing`s instead of a
+  duplicate row.
 
 ## Project layout
 
@@ -82,15 +92,26 @@ cp .env.example .env
 npm run dev
 ```
 
-## Getting a Ticketmaster API key
+## Getting API keys
+
+**Ticketmaster:**
 
 1. Create a free account at https://developer.ticketmaster.com/
 2. Create an "App" — you get a Consumer Key immediately (no approval wait).
 3. Put it in `backend/.env` as `TICKETMASTER_API_KEY=...`.
 
-Without a key, the app still runs: onboarding, auth, manual events, save/hide
-all work — the artist-search autocomplete and the fetcher just return empty
-results.
+**Quicket** (see "Known limitations" — the fetcher is unverified until
+someone checks it against real docs):
+
+1. Register at https://developer.quicket.co.za for an API key.
+2. Put it in `backend/.env` as `QUICKET_API_KEY=...`.
+3. Read https://docs.quicket.com and fix `apps/core/quicket_client.py` /
+   `apps/events/fetchers/quicket.py` (base URL, auth header, field names)
+   against what's actually there.
+
+Without keys, the app still runs: onboarding, auth, manual events, save/hide
+all work — the artist-search autocomplete and the fetchers just return empty
+results or a logged failure.
 
 ## Running the fetcher
 
@@ -100,6 +121,7 @@ is a manual/cron job; Phase 3 moves it to Celery beat):
 ```bash
 python manage.py fetch_events            # all active sources
 python manage.py fetch_events --source ticketmaster
+python manage.py fetch_events --source quicket
 ```
 
 In Docker: `docker compose exec backend python manage.py fetch_events`.
@@ -110,8 +132,11 @@ Set up a local cron entry to run it periodically, e.g. every 30 minutes:
 */30 * * * * cd /path/to/mzansi-lineup/backend && .venv/bin/python manage.py fetch_events >> fetch.log 2>&1
 ```
 
-Genres, keywords and the three `Source` rows (Ticketmaster active; Quicket
-and Howler inactive until their fetchers exist) are seeded automatically by
+(In production, this is the GitHub Actions workflow under "Deployment"
+instead of a local cron entry.)
+
+Genres, keywords and the three `Source` rows (Ticketmaster and Quicket
+active, Howler inactive until it has a fetcher) are seeded automatically by
 a data migration — no fixtures to load by hand.
 
 ## API docs
@@ -231,24 +256,48 @@ pytest                  # fetchers (mocked HTTP) + scoring logic + full API flow
 pytest --cov=apps       # with coverage
 ```
 
-## Known Phase 1 limitations
+## Filter bar
 
-- **"International act" detection is a manual flag.** Ticketmaster doesn't
-  expose attraction nationality, so `Event.is_international` defaults to
-  `False` from the fetcher — correct it per-event in the admin until a
-  better signal is wired up.
+The "For you" tab has filter controls for genre, source (within your own
+onboarding sources), city and date range, backed by query params on
+`GET /api/events/` (`genre`, `source`, `city`, `date_from`, `date_to`,
+`sort`, `page`/`page_size`). Two things worth knowing if you touch this:
+
+- `city=` sent as an **empty string** explicitly means "any city" and
+  overrides the profile's default city filter; an **absent** `city` param
+  falls back to the profile default. The frontend always sends `city`
+  (even empty) once the filter bar has rendered, specifically to hit the
+  override case — see the comment in `CalendarPage.jsx`'s `loadForYou`.
+- `source` only ever narrows *within* the sources you selected during
+  onboarding (requesting one you didn't select returns zero results,
+  rather than expanding beyond your selection).
+
+## Known limitations
+
+- **Quicket fetcher is unverified.** `docs.quicket.com` is a JS-rendered
+  site I couldn't read programmatically, so `apps/core/quicket_client.py`
+  and `apps/events/fetchers/quicket.py` are a best-effort guess at the
+  base URL, auth header and response shape — not a confirmed contract.
+  Both files have a comment block on what to check and fix once you have a
+  real API key and the actual docs in front of you; the assumed shape is
+  pinned down by `apps/events/tests/test_quicket_fetcher.py`'s fixture.
+- **"International act" detection is a manual flag.** Neither Ticketmaster
+  nor (assumed) Quicket expose attraction nationality, so
+  `Event.is_international` defaults to `False` from both fetchers —
+  correct it per-event in the admin until a better signal is wired up.
 - **City matching is exact-string**, not metro-aware (a venue tagged
-  "Sandton" won't match a "Johannesburg" filter). Fine for Phase 1; a
-  city-alias table is a natural Phase 2 addition.
-- **No filter bar / infinite scroll yet** — those are explicitly Phase 2 in
-  the original spec. The API already accepts `genre`, `city`, `date_from`,
-  `date_to`, `sort` and `page`/`page_size` on `GET /api/events/`, so the UI
-  work is additive.
+  "Sandton" won't match a "Johannesburg" filter). The cross-source
+  de-dup fallback has the same limitation. A city-alias table would fix
+  both at once.
+- **No infinite scroll / pagination UI yet** on the list view — the API
+  supports `page`/`page_size`, but the frontend currently renders every
+  matched event in one page.
 
 ## Roadmap
 
-- **Phase 2** — Quicket fetcher, cross-source de-duplication polish, filter
-  bar, "upcoming for you" list, profile page (done early, in Phase 1 here).
+- **Rest of Phase 2** — infinite scroll/pagination on the list view,
+  verifying the Quicket fetcher against real docs, a city-alias table for
+  better de-dup and city filtering.
 - **Phase 3** — LLM classifier scoring step, Spotify import, Google sign-in,
   .ics/Google Calendar export, Celery + Redis scheduling.
 - **Phase 4** — Artist-announcement alerts, Howler fetcher (pending API

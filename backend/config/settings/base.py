@@ -129,6 +129,11 @@ CORS_ALLOWED_ORIGINS = env.list(
 
 TICKETMASTER_API_KEY = env("TICKETMASTER_API_KEY", default="")
 QUICKET_API_KEY = env("QUICKET_API_KEY", default="")
+# Best-effort default — Quicket's real base URL/auth scheme haven't been
+# verified against docs.quicket.com yet. See apps/core/quicket_client.py.
+QUICKET_API_BASE_URL = env(
+    "QUICKET_API_BASE_URL", default="https://api.quicket.co.za/v1"
+)
 
 SOUTH_AFRICAN_CITIES = [
     "Johannesburg",
