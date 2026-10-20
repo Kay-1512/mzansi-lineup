@@ -1,0 +1,37 @@
+name: Scheduled event fetch
+
+# Runs the fetchers directly against the production (Neon) database — no
+# extra HTTP endpoint on the Render API needed. See README "Deployment".
+on:
+  schedule:
+    - cron: "0,30 * * * *" # every 30 minutes
+  workflow_dispatch: {} # lets you trigger a run by hand from the Actions tab
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run fetch_events against production
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          # Not a real host check here (no HTTP request is made), just needs
+          # to be non-empty for settings.py to import cleanly.
+          DJANGO_ALLOWED_HOSTS: "*"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+        run: python manage.py fetch_events

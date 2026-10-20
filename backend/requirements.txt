@@ -1,0 +1,11 @@
+Django>=5.2,<5.3
+djangorestframework
+djangorestframework-simplejwt
+drf-spectacular
+django-filter
+psycopg[binary]
+django-environ
+django-cors-headers
+whitenoise
+requests
+gunicorn
