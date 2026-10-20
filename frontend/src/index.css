@@ -356,6 +356,12 @@ label select {
   padding: 2rem 0;
 }
 
+.load-more-row {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0 2rem;
+}
+
 /* --- Events --- */
 
 .list-group-label {

@@ -271,6 +271,11 @@ onboarding sources), city and date range, backed by query params on
 - `source` only ever narrows *within* the sources you selected during
   onboarding (requesting one you didn't select returns zero results,
   rather than expanding beyond your selection).
+- The list view paginates with a real "Load more" button, fetching
+  `page`/`page_size` from the API as you go (`LIST_PAGE_SIZE = 20` in
+  `CalendarPage.jsx`). The calendar view instead fetches one larger page
+  up front (`CALENDAR_PAGE_SIZE = 500`), since it needs the whole matched
+  set to render correctly as you navigate between months.
 
 ## Known limitations
 
@@ -289,15 +294,16 @@ onboarding sources), city and date range, backed by query params on
   "Sandton" won't match a "Johannesburg" filter). The cross-source
   de-dup fallback has the same limitation. A city-alias table would fix
   both at once.
-- **No infinite scroll / pagination UI yet** on the list view — the API
-  supports `page`/`page_size`, but the frontend currently renders every
-  matched event in one page.
+- **The calendar view's single large fetch (500 events) isn't true
+  pagination** — a user matched to more than 500 upcoming events would
+  silently miss some on the calendar (the list view has no such cap). Not
+  a realistic volume yet, but worth revisiting before go-live.
 
 ## Roadmap
 
-- **Rest of Phase 2** — infinite scroll/pagination on the list view,
-  verifying the Quicket fetcher against real docs, a city-alias table for
-  better de-dup and city filtering.
+- **Rest of Phase 2** — verifying the Quicket fetcher against real docs, a
+  city-alias table for better de-dup and city filtering, a real cap/strategy
+  for the calendar view's fetch size.
 - **Phase 3** — LLM classifier scoring step, Spotify import, Google sign-in,
   .ics/Google Calendar export, Celery + Redis scheduling.
 - **Phase 4** — Artist-announcement alerts, Howler fetcher (pending API

@@ -15,6 +15,13 @@ function loadView() {
   return window.innerWidth < 768 ? "list" : "calendar";
 }
 
+// The list view paginates with a real "Load more" (matches what the API's
+// page/page_size params are for); the calendar needs its whole matched set
+// up front to render correctly as the user navigates between months, so it
+// fetches one generously-sized page instead of paging through the grid.
+const LIST_PAGE_SIZE = 20;
+const CALENDAR_PAGE_SIZE = 500;
+
 export default function CalendarPage() {
   const { profile, logout } = useAuth();
   const [view, setView] = useState(loadView);
@@ -23,6 +30,9 @@ export default function CalendarPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [genres, setGenres] = useState([]);
   const [forYou, setForYou] = useState([]);
+  const [forYouCount, setForYouCount] = useState(0);
+  const [forYouPage, setForYouPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [saved, setSaved] = useState([]);
   const [manual, setManual] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,16 +43,38 @@ export default function CalendarPage() {
     localStorage.setItem("preferred_view", next);
   }
 
-  async function loadForYou() {
-    const params = { sort };
+  function buildForYouParams(page) {
+    const params = {
+      sort,
+      page,
+      page_size: view === "calendar" ? CALENDAR_PAGE_SIZE : LIST_PAGE_SIZE,
+    };
     for (const [key, value] of Object.entries(filters)) {
       // `city` always needs to be sent, even empty ("Any city" overriding
       // the profile default) — see EventListView's handling of it. The
       // other filters have no such default to override, so omit when unset.
       if (value || key === "city") params[key] = value;
     }
-    const data = await eventsApi.getForYouEvents(params);
+    return params;
+  }
+
+  async function loadForYouFirstPage() {
+    const data = await eventsApi.getForYouEvents(buildForYouParams(1));
     setForYou(data.results);
+    setForYouCount(data.count);
+    setForYouPage(1);
+  }
+
+  async function loadMoreForYou() {
+    setLoadingMore(true);
+    try {
+      const nextPage = forYouPage + 1;
+      const data = await eventsApi.getForYouEvents(buildForYouParams(nextPage));
+      setForYou((prev) => [...prev, ...data.results]);
+      setForYouPage(nextPage);
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   async function loadSaved() {
@@ -56,13 +88,15 @@ export default function CalendarPage() {
 
   useEffect(() => {
     getGenres().then(setGenres);
+    loadSaved();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadForYou(), loadSaved()]).finally(() => setLoading(false));
+    loadForYouFirstPage().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, filters]);
+  }, [sort, filters, view]);
 
   async function handleSave(event) {
     await eventsApi.saveEvent(event.id);
@@ -155,12 +189,21 @@ export default function CalendarPage() {
           onHide={handleHide}
         />
       ) : (
-        <ListView
-          events={activeEvents}
-          onSave={handleSave}
-          onUnsave={handleUnsave}
-          onHide={handleHide}
-        />
+        <>
+          <ListView
+            events={activeEvents}
+            onSave={handleSave}
+            onUnsave={handleUnsave}
+            onHide={handleHide}
+          />
+          {tab === "for-you" && forYou.length < forYouCount && (
+            <div className="load-more-row">
+              <button type="button" className="btn-secondary" onClick={loadMoreForYou} disabled={loadingMore}>
+                {loadingMore ? "Loading…" : `Load more (${forYouCount - forYou.length} more)`}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {!profile?.onboarding_complete && (
