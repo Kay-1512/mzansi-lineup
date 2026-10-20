@@ -1,6 +1,6 @@
 from django.utils.text import slugify
 
-from apps.catalog.models import Source
+from apps.catalog.models import Source, normalize_city
 
 from ..models import Event, EventListing
 
@@ -39,11 +39,18 @@ def _find_cross_source_match(title, start, city):
     return None
 
 
-def upsert_normalised_event(source_slug, normalised):
+def upsert_normalised_event(source_slug, normalised, city_alias_map=None):
     """Insert or update the shared Event row for one normalised item, and
     attach/refresh its per-source EventListing. Returns (event, created).
+
+    `city_alias_map` (from CityAlias.build_lookup_map()) resolves raw venue
+    city strings like "Sandton" to a canonical city before it's stored or
+    matched on — both the city filter and the cross-source match below
+    benefit from it. Omit it (or pass {}) to skip normalisation, e.g. in a
+    test that doesn't care about aliasing.
     """
     source = Source.objects.get(slug=source_slug)
+    city = normalize_city(normalised.city, city_alias_map or {})
     dedupe_key = compute_dedupe_key(
         normalised.title, normalised.start, normalised.venue
     )
@@ -53,7 +60,7 @@ def upsert_normalised_event(source_slug, normalised):
         description=normalised.description,
         artists=normalised.artists,
         venue=normalised.venue,
-        city=normalised.city,
+        city=city,
         start=normalised.start,
         end=normalised.end,
         image_url=normalised.image_url,
@@ -62,9 +69,7 @@ def upsert_normalised_event(source_slug, normalised):
 
     event = Event.objects.filter(dedupe_key=dedupe_key).first()
     if event is None:
-        event = _find_cross_source_match(
-            normalised.title, normalised.start, normalised.city
-        )
+        event = _find_cross_source_match(normalised.title, normalised.start, city)
 
     if event is None:
         event = Event.objects.create(dedupe_key=dedupe_key, **fields)

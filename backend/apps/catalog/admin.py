@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Genre, GenreKeyword, Source, UserGenre, UserSource, WatchedArtist
+from .models import (
+    CityAlias,
+    Genre,
+    GenreKeyword,
+    Source,
+    UserGenre,
+    UserSource,
+    WatchedArtist,
+)
 
 
 class GenreKeywordInline(admin.TabularInline):
@@ -29,6 +37,13 @@ class GenreKeywordAdmin(admin.ModelAdmin):
 class SourceAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "is_active")
     list_filter = ("is_active",)
+
+
+@admin.register(CityAlias)
+class CityAliasAdmin(admin.ModelAdmin):
+    list_display = ("alias", "canonical_city")
+    list_filter = ("canonical_city",)
+    search_fields = ("alias",)
 
 
 admin.site.register(UserSource)

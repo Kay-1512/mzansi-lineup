@@ -8,11 +8,13 @@ user sees only the events that match their taste, with a reason why
 
 **Status: Phase 2.** Phase 1 (auth, onboarding, the Ticketmaster fetcher,
 per-user scoring, the calendar/list UI, save/hide, manual events, the
-profile page and match-reason labels) is done, plus a first pass at Phase
-2: a Quicket fetcher (best-effort — see "Known limitations" below), a
-cross-source de-duplication fallback, and the genre/source/city/date filter
-bar. Remaining Phase 2 polish and Phase 3+ (LLM scoring, Spotify import,
-Google sign-in, calendar export, Celery) are still ahead — see "Roadmap".
+profile page and match-reason labels) is done. Phase 2 adds a Quicket
+fetcher (verified against the real API docs), cross-source de-duplication
+with a city-alias table for near-miss venue matching, the genre/source/
+city/date filter bar with real list-view pagination, and a calendar view
+that fetches its full matched set up front. Phase 3+ (LLM scoring, Spotify
+import, Google sign-in, calendar export, Celery) is still ahead — see
+"Roadmap".
 
 ## Architecture
 
@@ -38,6 +40,11 @@ Google sign-in, calendar export, Celery) are still ahead — see "Roadmap".
   different venue strings (e.g. "Grand Arena" vs "GrandWest Grand Arena")
   still collapses into one `Event` with two `EventListing`s instead of a
   duplicate row.
+- **City strings are normalised at ingestion, not filter time.** A
+  `CityAlias` table (admin-managed, seeded with a starter set — Sandton,
+  Centurion, Umhlanga, etc.) maps a venue's raw city string to one of the
+  four canonical cities before an `Event` is ever saved, so the de-dup
+  fallback above and the city filter both just compare canonical strings.
 
 ## Project layout
 
@@ -100,14 +107,16 @@ npm run dev
 2. Create an "App" — you get a Consumer Key immediately (no approval wait).
 3. Put it in `backend/.env` as `TICKETMASTER_API_KEY=...`.
 
-**Quicket** (see "Known limitations" — the fetcher is unverified until
-someone checks it against real docs):
+**Quicket:**
 
 1. Register at https://developer.quicket.co.za for an API key.
 2. Put it in `backend/.env` as `QUICKET_API_KEY=...`.
-3. Read https://docs.quicket.com and fix `apps/core/quicket_client.py` /
-   `apps/events/fetchers/quicket.py` (base URL, auth header, field names)
-   against what's actually there.
+
+The fetcher is verified against the real docs at https://docs.quicket.com
+(base URL, query-string auth, `/events` params, response envelope and field
+names all match) — the one open question is which `locality` level an
+event's venue city actually is; see the comment in
+`apps/core/quicket_client.py`.
 
 Without keys, the app still runs: onboarding, auth, manual events, save/hide
 all work — the artist-search autocomplete and the fetchers just return empty
@@ -279,21 +288,23 @@ onboarding sources), city and date range, backed by query params on
 
 ## Known limitations
 
-- **Quicket fetcher is unverified.** `docs.quicket.com` is a JS-rendered
-  site I couldn't read programmatically, so `apps/core/quicket_client.py`
-  and `apps/events/fetchers/quicket.py` are a best-effort guess at the
-  base URL, auth header and response shape — not a confirmed contract.
-  Both files have a comment block on what to check and fix once you have a
-  real API key and the actual docs in front of you; the assumed shape is
-  pinned down by `apps/events/tests/test_quicket_fetcher.py`'s fixture.
+- **Quicket's `locality` → city mapping is a best guess.** Everything else
+  about the fetcher (base URL, auth, endpoint, params, field names) is
+  verified against the real docs at https://docs.quicket.com, but an
+  event's `locality` object has undocumented `levelOne`/`levelTwo`/
+  `levelThree` fields. `levelThree` is used as the city (country > province
+  > city is the most plausible reading) — fix it in
+  `apps/core/quicket_client.py` / `apps/events/fetchers/quicket.py` if a
+  real response shows otherwise.
 - **"International act" detection is a manual flag.** Neither Ticketmaster
-  nor (assumed) Quicket expose attraction nationality, so
-  `Event.is_international` defaults to `False` from both fetchers —
-  correct it per-event in the admin until a better signal is wired up.
-- **City matching is exact-string**, not metro-aware (a venue tagged
-  "Sandton" won't match a "Johannesburg" filter). The cross-source
-  de-dup fallback has the same limitation. A city-alias table would fix
-  both at once.
+  nor Quicket expose attraction nationality, so `Event.is_international`
+  defaults to `False` from both fetchers — correct it per-event in the
+  admin until a better signal is wired up.
+- **City matching relies on the `CityAlias` table being kept up to date.**
+  It ships with a small starter set of well-known suburbs; a venue city
+  with no matching alias is stored as-is and won't line up with the four
+  canonical cities in filters or de-dup. Add aliases in the admin as real
+  fetched data reveals gaps.
 - **The calendar view's single large fetch (500 events) isn't true
   pagination** — a user matched to more than 500 upcoming events would
   silently miss some on the calendar (the list view has no such cap). Not
@@ -301,9 +312,8 @@ onboarding sources), city and date range, backed by query params on
 
 ## Roadmap
 
-- **Rest of Phase 2** — verifying the Quicket fetcher against real docs, a
-  city-alias table for better de-dup and city filtering, a real cap/strategy
-  for the calendar view's fetch size.
+- **Rest of Phase 2** — confirm the Quicket `locality` mapping against a
+  real response, a real cap/strategy for the calendar view's fetch size.
 - **Phase 3** — LLM classifier scoring step, Spotify import, Google sign-in,
   .ics/Google Calendar export, Celery + Redis scheduling.
 - **Phase 4** — Artist-announcement alerts, Howler fetcher (pending API

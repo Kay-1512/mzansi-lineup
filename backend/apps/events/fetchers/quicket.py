@@ -1,7 +1,6 @@
-"""UNVERIFIED — see apps/core/quicket_client.py for why, and what to fix
-once you have a real API key and the actual docs in front of you. The
-assumed response shape is documented (and pinned down) by
-apps/events/tests/test_quicket_fetcher.py's QUICKET_RAW_EVENT fixture.
+"""Verified against https://docs.quicket.com (2026-10-20) — see
+apps/core/quicket_client.py's module docstring for the one remaining
+ambiguity (which `locality` level is the city).
 """
 
 from datetime import datetime
@@ -23,33 +22,47 @@ class QuicketFetcher(BaseFetcher):
         items = []
         page = 1
         while page <= MAX_PAGES:
-            batch = self.client.search_events(page=page)
+            data = self.client.list_events(page=page)
+            batch = data.get("results", [])
             if not batch:
                 break
             items.extend(batch)
+            if page >= data.get("pages", page):
+                break
             page += 1
         return items
 
     def normalise(self, raw_item):
         try:
-            start_str = raw_item["start_date"]
+            start_str = raw_item["startDate"]
             if not start_str:
                 return None
             start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
 
-            venue = raw_item.get("venue", {})
-            images = raw_item.get("images", [])
+            end_str = raw_item.get("endDate")
+            end = (
+                datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                if end_str
+                else None
+            )
+
+            venue = raw_item.get("venue") or {}
+            locality = raw_item.get("locality") or {}
 
             return NormalisedEvent(
                 external_id=str(raw_item["id"]),
-                title=raw_item.get("title", ""),
+                title=raw_item.get("name", ""),
                 description=raw_item.get("description") or "",
-                artists=raw_item.get("performers", []),
+                # Quicket's event object has no artist/performer field —
+                # WatchedArtistStep already falls back to matching the
+                # title when the artists list doesn't have a hit, so this
+                # isn't a dead end for scoring.
+                artists=[],
                 venue=venue.get("name", ""),
-                city=venue.get("city", ""),
+                city=locality.get("levelThree", ""),
                 start=start,
-                end=None,
-                image_url=images[0] if images else "",
+                end=end,
+                image_url=raw_item.get("imageUrl") or "",
                 # Same limitation as the Ticketmaster fetcher — no reliable
                 # nationality signal from the API, defaults to False.
                 is_international=False,

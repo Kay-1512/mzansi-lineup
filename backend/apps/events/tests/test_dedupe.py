@@ -3,6 +3,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
+from apps.catalog.models import CityAlias
 from apps.events.fetchers.base import NormalisedEvent
 from apps.events.fetchers.dedupe import upsert_normalised_event
 from apps.events.models import Event, EventListing
@@ -90,3 +91,36 @@ class TestCrossSourceMatch:
 
         assert created is True
         assert Event.objects.count() == 2
+
+
+class TestCityAliasNormalisation:
+    def test_stores_the_canonical_city_not_the_raw_alias(self):
+        alias_map = CityAlias.build_lookup_map()  # seeded: Sandton -> Johannesburg
+        event, _ = upsert_normalised_event(
+            "ticketmaster", make_normalised(city="Sandton"), alias_map
+        )
+
+        assert event.city == "Johannesburg"
+
+    def test_an_aliased_city_still_merges_across_sources(self):
+        # Different venue strings (so the exact key misses) and one source's
+        # city is an alias for the other's canonical form — without
+        # normalisation this would fail the fuzzy match's city guard.
+        alias_map = CityAlias.build_lookup_map()
+        first, created_first = upsert_normalised_event(
+            "ticketmaster",
+            make_normalised(
+                external_id="tm-1", venue="Grand Arena", city="Johannesburg"
+            ),
+            alias_map,
+        )
+        second, created_second = upsert_normalised_event(
+            "quicket",
+            make_normalised(external_id="qk-1", venue="The Dome", city="Sandton"),
+            alias_map,
+        )
+
+        assert created_first is True
+        assert created_second is False
+        assert first.id == second.id
+        assert Event.objects.count() == 1

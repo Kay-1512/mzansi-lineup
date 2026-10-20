@@ -39,10 +39,15 @@ class BaseFetcher:
         raise NotImplementedError
 
     def run(self):
+        from apps.catalog.models import CityAlias
+
         from .dedupe import upsert_normalised_event
 
         if not self.source_slug:
             raise ValueError(f"{type(self).__name__} must set source_slug")
+
+        # Loaded once per run rather than queried per event.
+        city_alias_map = CityAlias.build_lookup_map()
 
         created = updated = skipped = 0
         for raw_item in self.fetch():
@@ -50,7 +55,9 @@ class BaseFetcher:
             if normalised is None:
                 skipped += 1
                 continue
-            _, was_created = upsert_normalised_event(self.source_slug, normalised)
+            _, was_created = upsert_normalised_event(
+                self.source_slug, normalised, city_alias_map
+            )
             created += int(was_created)
             updated += int(not was_created)
         return created, updated, skipped

@@ -92,6 +92,47 @@ class UserGenre(models.Model):
         return f"{self.user.username} -> {self.genre.name}"
 
 
+class CityAlias(models.Model):
+    """Maps an as-fetched venue city string (e.g. "Sandton") to one of the
+    app's four canonical cities, so events normalise to the same names the
+    city filter and onboarding's city choices use. Looked up
+    case-insensitively at event-ingestion time (see
+    apps/events/fetchers/dedupe.py) — adding an alias here fixes future
+    fetches (and cross-source de-dup matches) without a code change.
+    """
+
+    alias = models.CharField(max_length=100, unique=True)
+    canonical_city = models.CharField(
+        max_length=100, choices=[(c, c) for c in settings.SOUTH_AFRICAN_CITIES]
+    )
+
+    class Meta:
+        ordering = ["alias"]
+        verbose_name_plural = "city aliases"
+
+    def __str__(self):
+        return f"{self.alias} -> {self.canonical_city}"
+
+    @classmethod
+    def build_lookup_map(cls):
+        """{alias lowercased: canonical city}, loaded once per fetch run
+        rather than queried per event — see BaseFetcher.run()."""
+        return dict(
+            (alias.lower(), canonical)
+            for alias, canonical in cls.objects.values_list("alias", "canonical_city")
+        )
+
+
+def normalize_city(raw_city, alias_map):
+    """Resolve a raw venue-data city string to its canonical form via
+    `alias_map` (from CityAlias.build_lookup_map()), falling back to the
+    raw value (stripped) when there's no matching alias."""
+    if not raw_city:
+        return raw_city
+    stripped = raw_city.strip()
+    return alias_map.get(stripped.lower(), stripped)
+
+
 class WatchedArtist(models.Model):
     """An artist a user follows. external_id is the Ticketmaster attraction ID, when known."""
 
