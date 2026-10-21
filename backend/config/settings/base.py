@@ -74,6 +74,15 @@ DATABASES = {
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
     )
 }
+# Django opens a brand-new DB connection (full TCP+TLS+auth handshake) on
+# every single request by default (CONN_MAX_AGE=0) — against a remote
+# managed Postgres like Neon that's the dominant cost on any DB-touching
+# endpoint, not query time. Reusing a connection across requests within a
+# worker process cuts that handshake out entirely; CONN_HEALTH_CHECKS
+# detects and transparently reconnects if the connection ever goes stale
+# (e.g. Neon's serverless compute suspending after idle).
+DATABASES["default"]["CONN_MAX_AGE"] = 60
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {

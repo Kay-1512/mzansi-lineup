@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { updateProfile } from "../api/auth";
-import {
-  getGenres,
-  getSources,
-  getWatchedArtists,
-  removeWatchedArtist,
-  setOnboardingGenres,
-  setOnboardingSources,
-} from "../api/catalog";
+import { getGenres, getSources, setOnboardingGenres, setOnboardingSources } from "../api/catalog";
+import ArtistSearchPicker from "../components/ArtistSearchPicker";
 import { useAuth } from "../context/AuthContext";
 
 const CITIES = ["Johannesburg", "Pretoria", "Cape Town", "Durban"];
@@ -21,18 +15,14 @@ export default function ProfilePage() {
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [internationalActs, setInternationalActs] = useState(false);
   const [cities, setCities] = useState([]);
-  const [artists, setArtists] = useState([]);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    Promise.all([getSources(), getGenres(), getWatchedArtists()]).then(
-      ([sources, genres, watchedArtists]) => {
-        setAllSources(sources);
-        setAllGenres(genres);
-        setArtists(watchedArtists);
-      }
-    );
+    Promise.all([getSources(), getGenres()]).then(([sources, genres]) => {
+      setAllSources(sources);
+      setAllGenres(genres);
+    });
     setSelectedSources(profile.sources.map((s) => s.slug));
     setSelectedGenres(profile.genres.map((g) => g.slug));
     setInternationalActs(profile.international_acts);
@@ -41,11 +31,6 @@ export default function ProfilePage() {
 
   function toggle(list, setList, value) {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  }
-
-  async function handleRemoveArtist(id) {
-    await removeWatchedArtist(id);
-    setArtists((prev) => prev.filter((a) => a.id !== id));
   }
 
   async function handleSave() {
@@ -141,20 +126,8 @@ export default function ProfilePage() {
 
         <section>
           <h3>Watched artists</h3>
-          <ul className="watched-list">
-            {artists.map((artist) => (
-              <li key={artist.id}>
-                {artist.name}
-                <button
-                  type="button"
-                  className="remove-btn"
-                  onClick={() => handleRemoveArtist(artist.id)}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p className="step-hint">Search and tap to follow or unfollow an artist.</p>
+          <ArtistSearchPicker />
         </section>
 
         <div className="step-actions">

@@ -329,28 +329,6 @@ label select {
   max-width: 96px;
 }
 
-.watched-list {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0;
-}
-
-.watched-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0.8rem;
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  margin-bottom: 0.4rem;
-}
-
-.remove-btn {
-  background: transparent;
-  color: var(--color-text-muted);
-  padding: 0 0.3rem;
-}
-
 /* --- App shell --- */
 
 .app-shell {
