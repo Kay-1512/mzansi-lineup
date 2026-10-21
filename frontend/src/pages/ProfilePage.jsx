@@ -11,13 +11,7 @@ import {
 } from "../api/catalog";
 import { useAuth } from "../context/AuthContext";
 
-const CITIES = [
-  { value: "", label: "Anywhere in SA" },
-  { value: "johannesburg", label: "Johannesburg" },
-  { value: "pretoria", label: "Pretoria" },
-  { value: "cape_town", label: "Cape Town" },
-  { value: "durban", label: "Durban" },
-];
+const CITIES = ["Johannesburg", "Pretoria", "Cape Town", "Durban"];
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth();
@@ -26,7 +20,7 @@ export default function ProfilePage() {
   const [selectedSources, setSelectedSources] = useState([]);
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [internationalActs, setInternationalActs] = useState(false);
-  const [city, setCity] = useState("");
+  const [cities, setCities] = useState([]);
   const [artists, setArtists] = useState([]);
   const [saved, setSaved] = useState(false);
 
@@ -42,7 +36,7 @@ export default function ProfilePage() {
     setSelectedSources(profile.sources.map((s) => s.slug));
     setSelectedGenres(profile.genres.map((g) => g.slug));
     setInternationalActs(profile.international_acts);
-    setCity(profile.city || "");
+    setCities(profile.cities || []);
   }, [profile]);
 
   function toggle(list, setList, value) {
@@ -59,7 +53,7 @@ export default function ProfilePage() {
     await Promise.all([
       setOnboardingSources(selectedSources),
       setOnboardingGenres(selectedGenres, internationalActs),
-      updateProfile({ city: city || null }),
+      updateProfile({ cities }),
     ]);
     await refreshProfile();
     setSaved(true);
@@ -123,16 +117,23 @@ export default function ProfilePage() {
         </section>
 
         <section>
-          <h3>City</h3>
+          <h3>Cities</h3>
           <div className="chip-grid">
+            <button
+              type="button"
+              className={`chip ${cities.length === 0 ? "chip-selected" : ""}`}
+              onClick={() => setCities([])}
+            >
+              Anywhere in SA
+            </button>
             {CITIES.map((c) => (
               <button
-                key={c.value}
+                key={c}
                 type="button"
-                className={`chip ${city === c.value ? "chip-selected" : ""}`}
-                onClick={() => setCity(c.value)}
+                className={`chip ${cities.includes(c) ? "chip-selected" : ""}`}
+                onClick={() => toggle(cities, setCities, c)}
               >
-                {c.label}
+                {c}
               </button>
             ))}
           </div>

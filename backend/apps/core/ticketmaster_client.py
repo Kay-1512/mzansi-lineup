@@ -1,8 +1,5 @@
-"""Thin wrapper around the Ticketmaster Discovery API.
-
-Shared by the events fetcher (bulk event sync) and the catalog app's artist
-autocomplete endpoint (attraction search), so the base URL, auth and
-pagination-unwrapping logic live in exactly one place.
+"""Thin wrapper around the Ticketmaster Discovery API, used by the events
+fetcher (bulk event sync) — see apps/events/fetchers/ticketmaster.py.
 """
 
 import requests
@@ -41,8 +38,3 @@ class TicketmasterClient:
             },
         )
         return data.get("_embedded", {}).get("events", [])
-
-    def search_attractions(self, keyword, size=10):
-        """Artist/attraction name suggestions for the watchlist autocomplete box."""
-        data = self._get("/attractions.json", {"keyword": keyword, "size": size})
-        return data.get("_embedded", {}).get("attractions", [])

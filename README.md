@@ -11,10 +11,13 @@ per-user scoring, the calendar/list UI, save/hide, manual events, the
 profile page and match-reason labels) is done. Phase 2 adds a Quicket
 fetcher (verified against the real API docs), cross-source de-duplication
 with a city-alias table for near-miss venue matching, the genre/source/
-city/date filter bar with real list-view pagination, and a calendar view
-that fetches its full matched set up front. Phase 3+ (LLM scoring, Spotify
-import, Google sign-in, calendar export, Celery) is still ahead — see
-"Roadmap".
+city/date filter bar with real list-view pagination, a calendar view
+scoped to whatever date range is visible, a Spotify-backed artist search
+(pick-from-cards, Spotify-onboarding style) for the watchlist, a show/hide
+toggle on password fields, and multi-city support (a user's profile can
+have several home cities, not just one). Phase 3+ (LLM scoring, full
+"Connect Spotify" account import, Google sign-in, calendar export, Celery)
+is still ahead — see "Roadmap".
 
 ## Architecture
 
@@ -45,6 +48,15 @@ import, Google sign-in, calendar export, Celery) is still ahead — see
   Centurion, Umhlanga, etc.) maps a venue's raw city string to one of the
   four canonical cities before an `Event` is ever saved, so the de-dup
   fallback above and the city filter both just compare canonical strings.
+- **The watchlist picker is cards, not a dropdown.** `GET /api/artists/search/`
+  is backed by Spotify's artist search
+  ([apps/core/spotify_client.py](backend/apps/core/spotify_client.py)), so
+  each suggestion carries a photo — `ArtistCard.jsx` renders them as
+  tap-to-follow cards (Spotify's own "follow some artists" onboarding
+  step is the reference). `WatchedArtist.image_url` is copied from the
+  search result at add-time, so already-followed artists render as cards
+  without re-searching; a failed image load falls back to an initial
+  letter rather than a broken-image icon.
 
 ## Project layout
 
@@ -118,6 +130,18 @@ names all match) — the one open question is which `locality` level an
 event's venue city actually is; see the comment in
 `apps/core/quicket_client.py`.
 
+**Spotify** (powers the artist watchlist's search — pick from cards with
+photos, same idea as Spotify's own "follow some artists" onboarding step):
+
+1. Create a free app at https://developer.spotify.com/dashboard.
+2. Put its Client ID and Client Secret in `backend/.env` as
+   `SPOTIFY_CLIENT_ID=...` / `SPOTIFY_CLIENT_SECRET=...`.
+
+This uses the [Client Credentials
+flow](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow)
+— public catalog search only, no Spotify user login involved, and nothing
+is written back to Spotify.
+
 Without keys, the app still runs: onboarding, auth, manual events, save/hide
 all work — the artist-search autocomplete and the fetchers just return empty
 results or a logged failure.
@@ -179,7 +203,7 @@ curl -s -X POST $BASE/artists/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"name": "Tyla"}'
 
 curl -s -X PATCH $BASE/profile/ -H "$AUTH" -H 'Content-Type: application/json' \
-  -d '{"city": "cape_town", "onboarding_complete": true}'
+  -d '{"cities": ["Cape Town", "Durban"], "onboarding_complete": true}'
 
 # Your matched events
 curl -s $BASE/events/ -H "$AUTH"
@@ -268,23 +292,47 @@ pytest --cov=apps       # with coverage
 ## Filter bar
 
 The "For you" tab has filter controls for genre, source (within your own
-onboarding sources), city and date range, backed by query params on
+onboarding sources), city/cities and date range, backed by query params on
 `GET /api/events/` (`genre`, `source`, `city`, `date_from`, `date_to`,
-`sort`, `page`/`page_size`). Two things worth knowing if you touch this:
+`sort`, `page`/`page_size`). Several things worth knowing if you touch this:
 
-- `city=` sent as an **empty string** explicitly means "any city" and
-  overrides the profile's default city filter; an **absent** `city` param
-  falls back to the profile default. The frontend always sends `city`
-  (even empty) once the filter bar has rendered, specifically to hit the
-  override case — see the comment in `CalendarPage.jsx`'s `loadForYou`.
+- `UserProfile.cities` is a list now (a user can live in — or just care
+  about — more than one city), stored as canonical display names
+  (`"Cape Town"`, not a slug) so it compares directly against `Event.city`
+  with no translation step.
+- `city` on `GET /api/events/` is comma-separated (`?city=Durban,Pretoria`)
+  and always means "exactly these cities, overriding the profile
+  default" — including `city=` (empty), which means "any city". An
+  **absent** `city` param is the only way to get the profile's default
+  cities applied.
+- The frontend has to actively distinguish "the user hasn't touched the
+  city filter" from "the user explicitly chose every city" to make that
+  override rule work — `FilterBar`'s `filters.city` is `null` for
+  "untouched" (so `CalendarPage.jsx`'s `buildForYouParams` omits the
+  param and the profile default applies) vs. a string (possibly `""`) once
+  the user interacts with the `CityMultiSelect` dropdown. Collapsing this
+  to always-send-a-string (what an earlier single-city version did) is
+  the bug that shipped before: the profile's city default silently never
+  applied to the main feed, because the filter bar always overrode it to
+  "any city" on first render.
 - `source` only ever narrows *within* the sources you selected during
   onboarding (requesting one you didn't select returns zero results,
   rather than expanding beyond your selection).
 - The list view paginates with a real "Load more" button, fetching
   `page`/`page_size` from the API as you go (`LIST_PAGE_SIZE = 20` in
-  `CalendarPage.jsx`). The calendar view instead fetches one larger page
-  up front (`CALENDAR_PAGE_SIZE = 500`), since it needs the whole matched
-  set to render correctly as you navigate between months.
+  `CalendarPage.jsx`). The calendar view instead scopes its fetch to
+  whatever date range is currently visible in the grid, re-fetching as you
+  navigate between months/weeks/days (`CalendarView`'s `datesSet` →
+  `CalendarPage`'s `handleRangeChange`) — no cap on total matches, just a
+  generous `CALENDAR_PAGE_SIZE = 500` per-page ceiling for one visible
+  grid's worth of events. An explicit date filter in the filter bar wins
+  over the visible-range scoping when both are present.
+  - One subtlety this surfaced: re-fetching must **never** flip the
+    page's "first load" spinner back on, or it unmounts `<CalendarView>`
+    and FullCalendar loses its own navigation state (every month
+    navigation would instantly snap back to the current month once new
+    data arrived). `initialLoading` in `CalendarPage.jsx` only ever gates
+    the very first paint for exactly this reason.
 
 ## Known limitations
 
@@ -305,16 +353,17 @@ onboarding sources), city and date range, backed by query params on
   with no matching alias is stored as-is and won't line up with the four
   canonical cities in filters or de-dup. Add aliases in the admin as real
   fetched data reveals gaps.
-- **The calendar view's single large fetch (500 events) isn't true
-  pagination** — a user matched to more than 500 upcoming events would
-  silently miss some on the calendar (the list view has no such cap). Not
-  a realistic volume yet, but worth revisiting before go-live.
+- **The calendar's per-grid fetch (500 events) is a sanity ceiling, not a
+  real limit** — a user matched to more than 500 events within one visible
+  month/week/day grid would silently miss some. Not a realistic volume.
 
 ## Roadmap
 
 - **Rest of Phase 2** — confirm the Quicket `locality` mapping against a
-  real response, a real cap/strategy for the calendar view's fetch size.
-- **Phase 3** — LLM classifier scoring step, Spotify import, Google sign-in,
-  .ics/Google Calendar export, Celery + Redis scheduling.
+  real response.
+- **Phase 3** — LLM classifier scoring step, "Connect Spotify" (OAuth user
+  login to import their top artists automatically, vs. today's search-only
+  Client Credentials use), Google sign-in, .ics/Google Calendar export,
+  Celery + Redis scheduling.
 - **Phase 4** — Artist-announcement alerts, Howler fetcher (pending API
   access), production deployment.

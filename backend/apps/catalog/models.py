@@ -134,7 +134,12 @@ def normalize_city(raw_city, alias_map):
 
 
 class WatchedArtist(models.Model):
-    """An artist a user follows. external_id is the Ticketmaster attraction ID, when known."""
+    """An artist a user follows. external_id is the Spotify artist ID, when known
+    (picked from the watchlist search's autocomplete — see
+    apps/core/spotify_client.py). image_url is copied from that same search
+    result so already-watched artists can render as cards without
+    re-searching for them.
+    """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -143,6 +148,7 @@ class WatchedArtist(models.Model):
     )
     name = models.CharField(max_length=255)
     external_id = models.CharField(max_length=100, blank=True, null=True)
+    image_url = models.URLField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -38,8 +38,12 @@ export async function getWatchedArtists() {
   return data;
 }
 
-export async function addWatchedArtist(name, externalId) {
-  const { data } = await client.post("/artists/", { name, external_id: externalId || null });
+export async function addWatchedArtist(name, externalId, imageUrl) {
+  const { data } = await client.post("/artists/", {
+    name,
+    external_id: externalId || null,
+    image_url: imageUrl || "",
+  });
   return data;
 }
 

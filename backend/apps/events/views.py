@@ -31,7 +31,12 @@ class EventListView(APIView):
     @extend_schema(
         parameters=[
             OpenApiParameter(
-                "city", str, description="Override the profile's city filter."
+                "city",
+                str,
+                description=(
+                    "Comma-separated city list, overriding the profile's cities. "
+                    "Empty string means any city."
+                ),
             ),
             OpenApiParameter("date_from", str, description="ISO date, inclusive."),
             OpenApiParameter("date_to", str, description="ISO date, inclusive."),
@@ -78,13 +83,15 @@ class EventListView(APIView):
         # An explicit `city=` (empty string — "Any city" in the filter bar)
         # must override the profile default, so this can't just be
         # `.get("city") or <default>` — that can't tell "not sent" apart
-        # from "sent empty".
+        # from "sent empty". A user can have several home cities now, so
+        # both the override and the default are lists, matched with __in.
         if "city" in request.query_params:
-            city = request.query_params.get("city")
+            raw_cities = request.query_params.get("city", "")
+            cities = [c.strip() for c in raw_cities.split(",") if c.strip()]
         else:
-            city = user.profile.get_city_display() if user.profile.city else None
-        if city:
-            qs = qs.filter(city__iexact=city)
+            cities = user.profile.cities
+        if cities:
+            qs = qs.filter(city__in=cities)
 
         date_from = parse_date(request.query_params.get("date_from", "") or "")
         date_to = parse_date(request.query_params.get("date_to", "") or "")

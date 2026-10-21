@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { updateProfile } from "../../api/auth";
 
-const CITIES = [
-  { value: "", label: "Anywhere in SA" },
-  { value: "johannesburg", label: "Johannesburg" },
-  { value: "pretoria", label: "Pretoria" },
-  { value: "cape_town", label: "Cape Town" },
-  { value: "durban", label: "Durban" },
-];
+const CITIES = ["Johannesburg", "Pretoria", "Cape Town", "Durban"];
 
 export default function StepCity({ onFinish, onBack }) {
-  const [city, setCity] = useState("");
+  const [cities, setCities] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  function toggleCity(city) {
+    setCities((prev) =>
+      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]
+    );
+  }
 
   async function handleFinish() {
     setSaving(true);
     try {
-      await updateProfile({ city: city || null, onboarding_complete: true });
+      await updateProfile({ cities, onboarding_complete: true });
       onFinish();
     } finally {
       setSaving(false);
@@ -26,16 +26,25 @@ export default function StepCity({ onFinish, onBack }) {
   return (
     <div className="onboarding-step">
       <h2>Where are you based?</h2>
-      <p className="step-hint">Optional — narrows events to your city.</p>
+      <p className="step-hint">
+        Optional — pick as many cities as you like to narrow events to those.
+      </p>
       <div className="chip-grid">
-        {CITIES.map((c) => (
+        <button
+          type="button"
+          className={`chip ${cities.length === 0 ? "chip-selected" : ""}`}
+          onClick={() => setCities([])}
+        >
+          Anywhere in SA
+        </button>
+        {CITIES.map((city) => (
           <button
-            key={c.value}
+            key={city}
             type="button"
-            className={`chip ${city === c.value ? "chip-selected" : ""}`}
-            onClick={() => setCity(c.value)}
+            className={`chip ${cities.includes(city) ? "chip-selected" : ""}`}
+            onClick={() => toggleCity(city)}
           >
-            {c.label}
+            {city}
           </button>
         ))}
       </div>

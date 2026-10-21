@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import PasswordInput from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
 
 export default function RegisterPage() {
@@ -37,8 +38,7 @@ export default function RegisterPage() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordInput
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}

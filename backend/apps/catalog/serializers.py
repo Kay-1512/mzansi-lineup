@@ -19,13 +19,14 @@ class GenreSerializer(serializers.ModelSerializer):
 class WatchedArtistSerializer(serializers.ModelSerializer):
     class Meta:
         model = WatchedArtist
-        fields = ["id", "name", "external_id", "created_at"]
+        fields = ["id", "name", "external_id", "image_url", "created_at"]
         read_only_fields = ["id", "created_at"]
 
 
 class ArtistSearchResultSerializer(serializers.Serializer):
     name = serializers.CharField()
     external_id = serializers.CharField(allow_null=True)
+    image_url = serializers.CharField(allow_blank=True)
 
 
 class ArtistSearchResponseSerializer(serializers.Serializer):

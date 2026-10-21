@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import PasswordInput from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
@@ -36,8 +37,7 @@ export default function LoginPage() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

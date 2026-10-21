@@ -40,14 +40,14 @@ def test_full_onboarding_and_events_flow():
     assert resp.status_code == 201
     artist_id = resp.data["id"]
 
-    # Step 4: city + mark onboarding complete
+    # Step 4: cities + mark onboarding complete
     resp = client.patch(
         "/api/profile/",
-        {"city": "cape_town", "onboarding_complete": True},
+        {"cities": ["Cape Town", "Durban"], "onboarding_complete": True},
         format="json",
     )
     assert resp.status_code == 200
-    assert resp.data["city"] == "cape_town"
+    assert resp.data["cities"] == ["Cape Town", "Durban"]
     assert resp.data["onboarding_complete"] is True
     assert resp.data["sources"] == [
         {"id": 1, "name": "Ticketmaster", "slug": "ticketmaster", "is_active": True}

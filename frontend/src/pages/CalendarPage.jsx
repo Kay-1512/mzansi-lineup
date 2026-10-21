@@ -16,9 +16,11 @@ function loadView() {
 }
 
 // The list view paginates with a real "Load more" (matches what the API's
-// page/page_size params are for); the calendar needs its whole matched set
-// up front to render correctly as the user navigates between months, so it
-// fetches one generously-sized page instead of paging through the grid.
+// page/page_size params are for). The calendar view instead scopes its
+// fetch to whatever date range is currently visible in the grid (see
+// handleRangeChange, fed by CalendarView's `datesSet`), re-fetching as the
+// user navigates — so there's no cap on total matches, just a generous
+// per-page size as a sanity ceiling for one visible grid's worth of events.
 const LIST_PAGE_SIZE = 20;
 const CALENDAR_PAGE_SIZE = 500;
 
@@ -33,14 +35,25 @@ export default function CalendarPage() {
   const [forYouCount, setForYouCount] = useState(0);
   const [forYouPage, setForYouPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [calendarRangeStart, setCalendarRangeStart] = useState(null);
+  const [calendarRangeEnd, setCalendarRangeEnd] = useState(null);
   const [saved, setSaved] = useState([]);
   const [manual, setManual] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Only gates the very first paint — re-fetches triggered by filter/sort/
+  // range changes must NOT flip this back to true, or they'd unmount
+  // <CalendarView>, wiping out FullCalendar's own navigation state (it
+  // would always snap back to the current month on every range change).
+  const [initialLoading, setInitialLoading] = useState(true);
   const [showManualModal, setShowManualModal] = useState(false);
 
   function changeView(next) {
     setView(next);
     localStorage.setItem("preferred_view", next);
+  }
+
+  function handleRangeChange(start, end) {
+    setCalendarRangeStart(start);
+    setCalendarRangeEnd(end);
   }
 
   function buildForYouParams(page) {
@@ -50,10 +63,22 @@ export default function CalendarPage() {
       page_size: view === "calendar" ? CALENDAR_PAGE_SIZE : LIST_PAGE_SIZE,
     };
     for (const [key, value] of Object.entries(filters)) {
-      // `city` always needs to be sent, even empty ("Any city" overriding
-      // the profile default) — see EventListView's handling of it. The
-      // other filters have no such default to override, so omit when unset.
-      if (value || key === "city") params[key] = value;
+      if (key === "city") {
+        // `null` means "untouched — use the profile's default cities",
+        // so it must be omitted entirely for that default to apply. Any
+        // string value (including "", an explicit "Any city") is a real
+        // override and must always be sent — see EventListView's handling.
+        if (value !== null) params.city = value;
+        continue;
+      }
+      if (value) params[key] = value;
+    }
+    // On the calendar, scope the fetch to the visible grid instead of
+    // fetching every upcoming match — unless the user already set an
+    // explicit date filter, which wins.
+    if (view === "calendar" && calendarRangeStart && !filters.date_from && !filters.date_to) {
+      params.date_from = calendarRangeStart;
+      params.date_to = calendarRangeEnd;
     }
     return params;
   }
@@ -93,10 +118,9 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    loadForYouFirstPage().finally(() => setLoading(false));
+    loadForYouFirstPage().finally(() => setInitialLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, filters, view]);
+  }, [sort, filters, view, calendarRangeStart, calendarRangeEnd]);
 
   async function handleSave(event) {
     await eventsApi.saveEvent(event.id);
@@ -179,7 +203,7 @@ export default function CalendarPage() {
         />
       )}
 
-      {loading ? (
+      {initialLoading ? (
         <p className="empty-state">Loading your lineup…</p>
       ) : view === "calendar" ? (
         <CalendarView
@@ -187,6 +211,7 @@ export default function CalendarPage() {
           onSave={handleSave}
           onUnsave={handleUnsave}
           onHide={handleHide}
+          onRangeChange={handleRangeChange}
         />
       ) : (
         <>

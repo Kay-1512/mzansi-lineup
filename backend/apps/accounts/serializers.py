@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -44,7 +45,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             "email",
-            "city",
+            "cities",
             "international_acts",
             "onboarding_complete",
             "sources",
@@ -71,6 +72,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    # The model's plain JSONField has no built-in choice validation —
+    # without this, any list of strings would be accepted as "cities".
+    cities = serializers.ListField(
+        child=serializers.ChoiceField(choices=settings.SOUTH_AFRICAN_CITIES),
+        required=False,
+    )
+
     class Meta:
         model = UserProfile
-        fields = ["city", "international_acts", "onboarding_complete"]
+        fields = ["cities", "international_acts", "onboarding_complete"]

@@ -3,7 +3,7 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.ticketmaster_client import TicketmasterClient, TicketmasterError
+from apps.core.spotify_client import SpotifyClient, SpotifyError
 
 from .models import Genre, Source, UserGenre, UserSource, WatchedArtist
 from .serializers import (
@@ -110,7 +110,9 @@ class WatchedArtistDeleteView(generics.DestroyAPIView):
 
 class ArtistSearchView(APIView):
     """Autocomplete suggestions for the watchlist search box, backed by
-    Ticketmaster's attractions endpoint."""
+    Spotify's artist search (Client Credentials — public catalog only,
+    no Spotify login). Returns an image per artist so the frontend can
+    render them as cards, Spotify-onboarding style."""
 
     @extend_schema(responses=ArtistSearchResponseSerializer)
     def get(self, request):
@@ -119,11 +121,16 @@ class ArtistSearchView(APIView):
             return Response({"results": []})
 
         try:
-            attractions = TicketmasterClient().search_attractions(query)
-        except TicketmasterError:
+            artists = SpotifyClient().search_artists(query)
+        except SpotifyError:
             return Response({"results": []})
 
         results = [
-            {"name": a.get("name"), "external_id": a.get("id")} for a in attractions
+            {
+                "name": artist.get("name"),
+                "external_id": artist.get("id"),
+                "image_url": artist["images"][0]["url"] if artist.get("images") else "",
+            }
+            for artist in artists
         ]
         return Response({"results": results})

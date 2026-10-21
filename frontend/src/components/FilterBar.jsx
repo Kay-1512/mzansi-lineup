@@ -1,17 +1,67 @@
-const CITIES = [
-  { value: "", label: "Any city" },
-  { value: "Johannesburg", label: "Johannesburg" },
-  { value: "Pretoria", label: "Pretoria" },
-  { value: "Cape Town", label: "Cape Town" },
-  { value: "Durban", label: "Durban" },
-];
+import { useEffect, useRef, useState } from "react";
 
-const EMPTY_FILTERS = { genre: "", source: "", city: "", date_from: "", date_to: "" };
+const CITIES = ["Johannesburg", "Pretoria", "Cape Town", "Durban"];
+
+// `city: null` means "untouched — use the profile's default cities";
+// `city: ""` means the user explicitly picked "Any city" (overriding the
+// default to show everything). Both render as no checkboxes selected, but
+// CalendarPage's buildForYouParams treats them differently — see its comment.
+const EMPTY_FILTERS = { genre: "", source: "", city: null, date_from: "", date_to: "" };
 
 export { EMPTY_FILTERS };
 
+function CityMultiSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const selected = value ? value.split(",").filter(Boolean) : [];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function toggleCity(city) {
+    const next = selected.includes(city)
+      ? selected.filter((c) => c !== city)
+      : [...selected, city];
+    onChange(next.join(","));
+  }
+
+  const label =
+    selected.length === 0 ? "Any city" : selected.length === 1 ? selected[0] : `${selected.length} cities`;
+
+  return (
+    <div className="multi-select" ref={containerRef}>
+      <button type="button" className="multi-select-trigger" onClick={() => setOpen((o) => !o)}>
+        {label}
+      </button>
+      {open && (
+        <div className="multi-select-panel">
+          {CITIES.map((city) => (
+            <label key={city} className="multi-select-option">
+              <input
+                type="checkbox"
+                checked={selected.includes(city)}
+                onChange={() => toggleCity(city)}
+              />
+              {city}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FilterBar({ genres, sources, filters, onChange }) {
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+  const hasActiveFilters = Object.entries(filters).some(
+    ([key, value]) => key !== "city" && Boolean(value)
+  );
 
   function set(key, value) {
     onChange({ ...filters, [key]: value });
@@ -37,13 +87,7 @@ export default function FilterBar({ genres, sources, filters, onChange }) {
         ))}
       </select>
 
-      <select value={filters.city} onChange={(e) => set("city", e.target.value)}>
-        {CITIES.map((city) => (
-          <option key={city.value} value={city.value}>
-            {city.label}
-          </option>
-        ))}
-      </select>
+      <CityMultiSelect value={filters.city} onChange={(value) => set("city", value)} />
 
       <input
         type="date"
@@ -58,7 +102,7 @@ export default function FilterBar({ genres, sources, filters, onChange }) {
         aria-label="To date"
       />
 
-      {hasActiveFilters && (
+      {(hasActiveFilters || filters.city !== null) && (
         <button type="button" className="btn-ghost" onClick={() => onChange(EMPTY_FILTERS)}>
           Clear filters
         </button>

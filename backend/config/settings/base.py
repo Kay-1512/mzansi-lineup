@@ -129,6 +129,10 @@ CORS_ALLOWED_ORIGINS = env.list(
 
 TICKETMASTER_API_KEY = env("TICKETMASTER_API_KEY", default="")
 QUICKET_API_KEY = env("QUICKET_API_KEY", default="")
+# Used for the artist watchlist's search-as-you-type (Client Credentials
+# flow — no Spotify user login involved). See apps/core/spotify_client.py.
+SPOTIFY_CLIENT_ID = env("SPOTIFY_CLIENT_ID", default="")
+SPOTIFY_CLIENT_SECRET = env("SPOTIFY_CLIENT_SECRET", default="")
 
 SOUTH_AFRICAN_CITIES = [
     "Johannesburg",
