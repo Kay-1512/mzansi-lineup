@@ -3,6 +3,14 @@ services:
     name: mzansi-lineup-api
     runtime: python
     plan: free
+    # Must match the Neon database's region — every request makes several
+    # sequential DB round trips (see config/settings/base.py's CONN_MAX_AGE
+    # comment), so a region mismatch here shows up as *every* DB-touching
+    # endpoint being consistently slow (not just a cold-start blip). This
+    # field was missing originally, which defaulted the service to Oregon
+    # against a Frankfurt database — diagnosed live via a ~3.4s-per-request
+    # plateau that didn't improve with connection reuse alone.
+    region: frankfurt
     rootDir: backend
     buildCommand: "./build.sh"
     startCommand: "gunicorn config.wsgi:application"
