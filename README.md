@@ -341,6 +341,18 @@ secrets** (Settings → Secrets and variables → Actions):
   reuse the one Render generated if you want one source of truth
 - `DATABASE_URL` — the same Neon connection string
 - `TICKETMASTER_API_KEY`
+- `QUICKET_API_KEY` — once your Quicket account is approved (it isn't
+  instant — see "Getting API keys" above)
+
+Spotify is **not** needed here — it's only used by the live artist-search
+endpoint (Render), never by this cron job.
+
+Each of these needs two things, not just one: the secret itself (Settings →
+Secrets and variables → Actions) *and* a matching line in the workflow's
+`env:` block (`KEY: ${{ secrets.KEY }}`) — adding only the secret without
+wiring it into the workflow file silently does nothing (the command just
+logs "KEY is not configured" and moves on, which looks like a real failure
+but isn't one).
 
 The workflow also has `workflow_dispatch`, so you can trigger a run by hand
 from the Actions tab instead of waiting for the schedule. Note that GitHub's
