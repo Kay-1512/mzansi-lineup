@@ -94,3 +94,25 @@ class TestArtistSearchView:
 
         assert resp.status_code == 200
         assert resp.data["results"] == []
+
+    @override_settings(
+        SPOTIFY_CLIENT_ID="wrong-id", SPOTIFY_CLIENT_SECRET="wrong-secret"
+    )
+    @responses.activate
+    def test_spotify_rejecting_the_credentials_degrades_to_empty_results_not_a_500(
+        self,
+    ):
+        # Regression test: a *wrong* (not missing) key raises
+        # requests.HTTPError via response.raise_for_status(), not
+        # SpotifyError — this used to only catch SpotifyError and 500 here.
+        responses.add(
+            responses.POST,
+            TOKEN_URL,
+            json={"error": "invalid_client", "error_description": "Invalid client"},
+            status=400,
+        )
+
+        resp = authed_client().get("/api/artists/search/", {"q": "Tyla"})
+
+        assert resp.status_code == 200
+        assert resp.data["results"] == []

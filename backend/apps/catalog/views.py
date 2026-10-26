@@ -1,3 +1,6 @@
+import logging
+
+import requests
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.response import Response
@@ -16,6 +19,8 @@ from .serializers import (
     UserSourceSelectionSerializer,
     WatchedArtistSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SourceListView(generics.ListAPIView):
@@ -122,7 +127,13 @@ class ArtistSearchView(APIView):
 
         try:
             artists = SpotifyClient().search_artists(query)
-        except SpotifyError:
+        except (SpotifyError, requests.RequestException) as exc:
+            # A missing key raises SpotifyError; a *wrong* key (or any other
+            # Spotify-side failure) raises requests.HTTPError via
+            # response.raise_for_status() instead — neither should ever 500
+            # the watchlist search, same as every other external-API call
+            # in this app degrading to empty results instead of crashing.
+            logger.warning("Spotify artist search failed for %r: %s", query, exc)
             return Response({"results": []})
 
         results = [
