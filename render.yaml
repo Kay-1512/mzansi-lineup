@@ -35,3 +35,9 @@ services:
         sync: false
       - key: TICKETMASTER_API_KEY
         sync: false
+      - key: QUICKET_API_KEY
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
