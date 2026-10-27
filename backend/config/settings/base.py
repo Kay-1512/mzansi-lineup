@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.conf import global_settings
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -83,6 +84,17 @@ DATABASES = {
 # (e.g. Neon's serverless compute suspending after idle).
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+
+# See apps/core/hashers.py — Django's 1,000,000-iteration PBKDF2 default
+# made every login take 3-4.5s on Render's free-tier CPU. Prepending our
+# 600,000-iteration hasher (OWASP's current PBKDF2-SHA256 floor) still lets
+# existing hashes verify fine; Django re-hashes them at the new count on
+# next successful login. Not overridden in test.py, which already swaps in
+# MD5 for test speed — see that file.
+PASSWORD_HASHERS = [
+    "apps.core.hashers.OwaspPBKDF2PasswordHasher",
+    *global_settings.PASSWORD_HASHERS,
+]
 
 AUTH_PASSWORD_VALIDATORS = [
     {
