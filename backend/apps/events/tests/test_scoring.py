@@ -63,6 +63,24 @@ class TestWatchedArtistStep:
 
         assert points == 100
 
+    def test_falls_back_to_matching_against_the_description(self):
+        # Quicket events never populate `artists` (no performer field in
+        # their API), so a support/headliner named only in the description
+        # (not the title) must still score.
+        user = make_user("u2b")
+        WatchedArtist.objects.create(user=user, name="Olivia Dean")
+        event = make_event(
+            title="Milk + Cookies Festival",
+            artists=[],
+            description="Headlined by Olivia Dean, with support from...",
+        )
+        context = UserScoringContext.for_user(user)
+
+        points, reason = WatchedArtistStep().score(event, context)
+
+        assert points == 100
+        assert "Olivia Dean" in reason
+
     def test_no_match_scores_zero_with_no_reason(self):
         user = make_user("u3")
         WatchedArtist.objects.create(user=user, name="Tyla")

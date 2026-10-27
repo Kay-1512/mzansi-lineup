@@ -23,13 +23,20 @@ class WatchedArtistStep(ScoringStep):
 
         event_artists_lower = {a.lower() for a in (event.artists or [])}
         title_lower = event.title.lower()
+        # Quicket's events never populate `artists` (see QuicketFetcher.normalise),
+        # and even Ticketmaster attractions miss support acts — a watched name is
+        # often only ever named in the description (lineup/support-act text), not
+        # the title, so that's checked too rather than just title+artists.
+        description_lower = (event.description or "").lower()
 
         # Compare lowercased, but report back the artist's original casing
         # (e.g. "Tyla") so match reasons read naturally.
         matched = {
             name
             for name in context.watched_artist_names
-            if name.lower() in event_artists_lower or name.lower() in title_lower
+            if name.lower() in event_artists_lower
+            or name.lower() in title_lower
+            or name.lower() in description_lower
         }
 
         if matched:
