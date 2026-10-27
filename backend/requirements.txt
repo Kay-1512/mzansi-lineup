@@ -8,4 +8,5 @@ django-environ
 django-cors-headers
 whitenoise
 requests
+feedparser
 gunicorn

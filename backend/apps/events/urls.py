@@ -11,4 +11,9 @@ urlpatterns = [
     path("events/saved/", views.SavedEventListView.as_view(), name="event-saved-list"),
     path("events/<int:pk>/save/", views.EventSaveView.as_view(), name="event-save"),
     path("events/<int:pk>/hide/", views.EventHideView.as_view(), name="event-hide"),
+    path(
+        "instagram-posts/",
+        views.InstagramPostListView.as_view(),
+        name="instagram-post-list",
+    ),
 ] + router.urls

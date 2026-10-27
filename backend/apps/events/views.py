@@ -6,12 +6,16 @@ from rest_framework import generics, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.catalog.models import Genre, UserSource
+from apps.catalog.models import Genre, UserSource, WatchedInstagramPage
 
-from .models import Event, HiddenEvent, ManualEvent, SavedEvent
+from .models import Event, HiddenEvent, InstagramPost, ManualEvent, SavedEvent
 from .scoring.context import UserScoringContext
 from .scoring.pipeline import score_event
-from .serializers import ManualEventSerializer, ScoredEventSerializer
+from .serializers import (
+    InstagramPostSerializer,
+    ManualEventSerializer,
+    ScoredEventSerializer,
+)
 
 
 def _attach_score(event, result, is_saved):
@@ -213,6 +217,22 @@ class EventHideView(APIView):
     def delete(self, request, pk):
         HiddenEvent.objects.filter(user=request.user, event_id=pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InstagramPostListView(generics.ListAPIView):
+    """Posts from the pages this user watches, newest first — the "they
+    posted something" feed for pages that never make it onto a ticketing
+    platform at all (see WatchedInstagramPage)."""
+
+    serializer_class = InstagramPostSerializer
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return InstagramPost.objects.none()
+        handles = WatchedInstagramPage.objects.filter(
+            user=self.request.user
+        ).values_list("handle", flat=True)
+        return InstagramPost.objects.filter(handle__in=handles)
 
 
 class ManualEventViewSet(viewsets.ModelViewSet):

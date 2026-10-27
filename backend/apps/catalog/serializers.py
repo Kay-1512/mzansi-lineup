@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import Genre, Source, UserGenre, UserSource, WatchedArtist
+from .models import (
+    Genre,
+    Source,
+    UserGenre,
+    UserSource,
+    WatchedArtist,
+    WatchedInstagramPage,
+)
 
 
 class SourceSerializer(serializers.ModelSerializer):
@@ -21,6 +28,16 @@ class WatchedArtistSerializer(serializers.ModelSerializer):
         model = WatchedArtist
         fields = ["id", "name", "external_id", "image_url", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+
+class WatchedInstagramPageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WatchedInstagramPage
+        fields = ["id", "handle", "feed_url", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_handle(self, value):
+        return value.strip().lstrip("@")
 
 
 class ArtistSearchResultSerializer(serializers.Serializer):

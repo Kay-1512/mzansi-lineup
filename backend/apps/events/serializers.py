@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Event, EventListing, ManualEvent
+from .models import Event, EventListing, InstagramPost, ManualEvent
 
 
 class EventListingSerializer(serializers.ModelSerializer):
@@ -50,3 +50,16 @@ class ManualEventSerializer(serializers.ModelSerializer):
         model = ManualEvent
         fields = ["id", "title", "venue", "start", "end", "notes", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+
+class InstagramPostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InstagramPost
+        fields = [
+            "id",
+            "handle",
+            "caption",
+            "post_url",
+            "image_url",
+            "posted_at",
+        ]

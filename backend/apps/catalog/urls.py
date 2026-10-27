@@ -26,4 +26,14 @@ urlpatterns = [
         name="watched-artist-delete",
     ),
     path("artists/search/", views.ArtistSearchView.as_view(), name="artist-search"),
+    path(
+        "instagram-pages/",
+        views.WatchedInstagramPageListCreateView.as_view(),
+        name="watched-instagram-page-list",
+    ),
+    path(
+        "instagram-pages/<int:pk>/",
+        views.WatchedInstagramPageDeleteView.as_view(),
+        name="watched-instagram-page-delete",
+    ),
 ]

@@ -8,7 +8,14 @@ from rest_framework.views import APIView
 
 from apps.core.spotify_client import SpotifyClient, SpotifyError
 
-from .models import Genre, Source, UserGenre, UserSource, WatchedArtist
+from .models import (
+    Genre,
+    Source,
+    UserGenre,
+    UserSource,
+    WatchedArtist,
+    WatchedInstagramPage,
+)
 from .serializers import (
     ArtistSearchResponseSerializer,
     GenreSerializer,
@@ -18,6 +25,7 @@ from .serializers import (
     UserGenreSelectionSerializer,
     UserSourceSelectionSerializer,
     WatchedArtistSerializer,
+    WatchedInstagramPageSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,6 +119,31 @@ class WatchedArtistDeleteView(generics.DestroyAPIView):
         if getattr(self, "swagger_fake_view", False):
             return WatchedArtist.objects.none()
         return WatchedArtist.objects.filter(user=self.request.user)
+
+
+class WatchedInstagramPageListCreateView(generics.ListCreateAPIView):
+    """Instagram pages a user wants to hear about firsthand — a handful at
+    most, not worth paginating."""
+
+    serializer_class = WatchedInstagramPageSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return WatchedInstagramPage.objects.none()
+        return WatchedInstagramPage.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class WatchedInstagramPageDeleteView(generics.DestroyAPIView):
+    serializer_class = WatchedInstagramPageSerializer
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return WatchedInstagramPage.objects.none()
+        return WatchedInstagramPage.objects.filter(user=self.request.user)
 
 
 class ArtistSearchView(APIView):

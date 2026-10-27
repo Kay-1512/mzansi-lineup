@@ -161,3 +161,34 @@ class WatchedArtist(models.Model):
 
     def __str__(self):
         return f"{self.user.username} watches {self.name}"
+
+
+class WatchedInstagramPage(models.Model):
+    """An Instagram page a user wants to hear about firsthand — e.g. a
+    promoter who announces lineups on Instagram before (or instead of) any
+    ticketing platform. Instagram's own API only grants access to accounts
+    that connect themselves to an app, which a promoter's page never would,
+    so feed_url is an RSS feed for that page from a third-party
+    Instagram-to-RSS proxy the user sets up themselves (see
+    apps/events/fetchers/instagram.py for the polling side).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="instagram_pages",
+    )
+    handle = models.CharField(max_length=100)
+    feed_url = models.URLField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["handle"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "handle"], name="unique_user_instagram_page"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} watches @{self.handle}"

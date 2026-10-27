@@ -111,3 +111,32 @@ class ManualEvent(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.user.username})"
+
+
+class InstagramPost(models.Model):
+    """One post pulled from a watched Instagram page's RSS feed (see
+    apps/events/fetchers/instagram.py). Shared across every user watching
+    that handle — fetched once per feed_url, not once per user, the same
+    "run once for everyone" shape as Event. There's no venue/date to
+    cross-match on like Event has, so posts are just handle-keyed, newest
+    first; a caption mentioning a date or lineup is for a human to read, not
+    something this app parses out.
+    """
+
+    handle = models.CharField(max_length=100)
+    feed_url = models.URLField()
+    # From the feed entry's guid, falling back to its link — unique per
+    # post regardless of which proxy service produced the feed.
+    guid = models.CharField(max_length=512, unique=True)
+    caption = models.TextField(blank=True)
+    post_url = models.URLField(blank=True)
+    image_url = models.URLField(blank=True)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-posted_at"]
+        indexes = [models.Index(fields=["handle"])]
+
+    def __str__(self):
+        return f"@{self.handle}: {self.caption[:40]}"

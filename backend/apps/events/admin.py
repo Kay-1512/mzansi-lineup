@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Event, EventListing, HiddenEvent, ManualEvent, SavedEvent
+from .models import (
+    Event,
+    EventListing,
+    HiddenEvent,
+    InstagramPost,
+    ManualEvent,
+    SavedEvent,
+)
 
 
 class EventListingInline(admin.TabularInline):
@@ -19,3 +26,10 @@ class EventAdmin(admin.ModelAdmin):
 admin.site.register(ManualEvent)
 admin.site.register(SavedEvent)
 admin.site.register(HiddenEvent)
+
+
+@admin.register(InstagramPost)
+class InstagramPostAdmin(admin.ModelAdmin):
+    list_display = ("handle", "posted_at", "post_url")
+    list_filter = ("handle",)
+    search_fields = ("handle", "caption")

@@ -8,6 +8,7 @@ from .models import (
     UserGenre,
     UserSource,
     WatchedArtist,
+    WatchedInstagramPage,
 )
 
 
@@ -49,3 +50,9 @@ class CityAliasAdmin(admin.ModelAdmin):
 admin.site.register(UserSource)
 admin.site.register(UserGenre)
 admin.site.register(WatchedArtist)
+
+
+@admin.register(WatchedInstagramPage)
+class WatchedInstagramPageAdmin(admin.ModelAdmin):
+    list_display = ("handle", "user", "feed_url")
+    search_fields = ("handle", "user__username")

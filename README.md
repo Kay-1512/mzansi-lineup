@@ -155,6 +155,22 @@ Without keys, the app still runs: onboarding, auth, manual events, save/hide
 all work — the artist-search autocomplete and the fetchers just return empty
 results or a logged failure.
 
+**Instagram** (watch specific pages — e.g. a promoter who announces lineups
+on Instagram before, or instead of, any ticketing platform):
+
+Instagram's own API only grants access to accounts that connect themselves
+to your app, which a promoter's page never would — there's no key to get
+here. Instead:
+
+1. Pick a page-to-RSS proxy — e.g. [rss.app](https://rss.app) or
+   [Bazaar](https://bazaar.app) — and generate an RSS feed URL for the
+   Instagram page you want to watch. This usually needs a paid plan on the
+   proxy's side; that's between you and them, not something this app needs
+   credentials for.
+2. `POST /api/instagram-pages/` with `{"handle": "...", "feed_url": "..."}`
+   (see the cURL walkthrough below). `fetch_instagram_posts` (next section)
+   picks it up from there.
+
 ## Running the fetcher
 
 Events don't appear by magic — run the management command (in Phase 1 this
@@ -164,6 +180,7 @@ is a manual/cron job; Phase 3 moves it to Celery beat):
 python manage.py fetch_events            # all active sources
 python manage.py fetch_events --source ticketmaster
 python manage.py fetch_events --source quicket
+python manage.py fetch_instagram_posts   # every distinct watched Instagram feed
 ```
 
 In Docker: `docker compose exec backend python manage.py fetch_events`.
@@ -172,6 +189,7 @@ Set up a local cron entry to run it periodically, e.g. every 30 minutes:
 
 ```
 */30 * * * * cd /path/to/mzansi-lineup/backend && .venv/bin/python manage.py fetch_events >> fetch.log 2>&1
+*/30 * * * * cd /path/to/mzansi-lineup/backend && .venv/bin/python manage.py fetch_instagram_posts >> fetch.log 2>&1
 ```
 
 (In production, this is the GitHub Actions workflow under "Deployment"
@@ -210,6 +228,13 @@ curl -s -X PUT $BASE/onboarding/genres/ -H "$AUTH" -H 'Content-Type: application
 
 curl -s -X POST $BASE/artists/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"name": "Tyla"}'
+
+# Watch an Instagram page (feed_url from rss.app/Bazaar/etc — see "Getting API keys")
+curl -s -X POST $BASE/instagram-pages/ -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"handle": "milkandcookies", "feed_url": "https://rss.app/feeds/xxxxx.xml"}'
+
+# Posts from pages you watch, newest first
+curl -s $BASE/instagram-posts/ -H "$AUTH"
 
 curl -s -X PATCH $BASE/profile/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"cities": ["Cape Town", "Durban"], "onboarding_complete": true}'
@@ -333,9 +358,10 @@ Two things worth knowing about what you'll see once it's live:
 ### 4. Scheduled fetching — GitHub Actions
 
 [`.github/workflows/fetch-events-cron.yml`](.github/workflows/fetch-events-cron.yml)
-runs `manage.py fetch_events` directly against the Neon database every 30
-minutes — no extra endpoint on the API needed. Add these as **repository
-secrets** (Settings → Secrets and variables → Actions):
+runs `manage.py fetch_events` and `manage.py fetch_instagram_posts` directly
+against the Neon database every 30 minutes — no extra endpoint on the API
+needed. Add these as **repository secrets** (Settings → Secrets and
+variables → Actions):
 
 - `DJANGO_SECRET_KEY` — any value works here (no HTTP server runs in CI);
   reuse the one Render generated if you want one source of truth
@@ -343,6 +369,10 @@ secrets** (Settings → Secrets and variables → Actions):
 - `TICKETMASTER_API_KEY`
 - `QUICKET_API_KEY` — once your Quicket account is approved (it isn't
   instant — see "Getting API keys" above)
+
+`fetch_instagram_posts` needs no secret of its own — every feed URL it
+polls comes from the `WatchedInstagramPage` rows already in the database
+(added via `POST /api/instagram-pages/`), not from an API key.
 
 Spotify is **not** needed here — it's only used by the live artist-search
 endpoint (Render), never by this cron job.
@@ -434,6 +464,15 @@ onboarding sources), city/cities and date range, backed by query params on
 - **The calendar's per-grid fetch (500 events) is a sanity ceiling, not a
   real limit** — a user matched to more than 500 events within one visible
   month/week/day grid would silently miss some. Not a realistic volume.
+- **Instagram posts are raw, not parsed into events.** `InstagramPost`
+  stores the caption/link/image as-is — nothing extracts a date, venue or
+  lineup from the caption text, and posts never feed into `Event` or the
+  scoring pipeline. It's a "this page just posted something" feed for a
+  human to read, not an announcement-to-event pipeline (that's the Phase 4
+  "Artist-announcement alerts" item below). It also depends on a
+  third-party Instagram-to-RSS proxy (rss.app, Bazaar, ...) staying up and
+  the page you're watching staying public — nothing here talks to Instagram
+  directly.
 
 ## Roadmap
 

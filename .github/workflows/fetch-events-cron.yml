@@ -36,3 +36,11 @@ jobs:
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
           QUICKET_API_KEY: ${{ secrets.QUICKET_API_KEY }}
         run: python manage.py fetch_events
+
+      - name: Run fetch_instagram_posts against production
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_ALLOWED_HOSTS: "*"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py fetch_instagram_posts
