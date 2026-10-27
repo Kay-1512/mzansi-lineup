@@ -35,3 +35,8 @@ export async function createManualEvent(payload) {
 export async function deleteManualEvent(id) {
   await client.delete(`/manual-events/${id}/`);
 }
+
+export async function getInstagramPosts() {
+  const { data } = await client.get("/instagram-posts/");
+  return data.results;
+}

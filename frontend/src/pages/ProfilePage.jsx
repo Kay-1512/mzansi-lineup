@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { updateProfile } from "../api/auth";
 import { getGenres, getSources, setOnboardingGenres, setOnboardingSources } from "../api/catalog";
 import ArtistSearchPicker from "../components/ArtistSearchPicker";
+import InstagramPagePicker from "../components/InstagramPagePicker";
 import { useAuth } from "../context/AuthContext";
 
 const CITIES = ["Johannesburg", "Pretoria", "Cape Town", "Durban"];
@@ -128,6 +129,16 @@ export default function ProfilePage() {
           <h3>Watched artists</h3>
           <p className="step-hint">Search and tap to follow or unfollow an artist.</p>
           <ArtistSearchPicker />
+        </section>
+
+        <section>
+          <h3>Instagram pages</h3>
+          <p className="step-hint">
+            Hear about posts from a page directly — e.g. a promoter who announces
+            lineups on Instagram first. Needs a feed URL from a third-party
+            Instagram-to-RSS proxy (see the README).
+          </p>
+          <InstagramPagePicker />
         </section>
 
         <div className="step-actions">

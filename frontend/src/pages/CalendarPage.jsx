@@ -4,6 +4,7 @@ import { getGenres } from "../api/catalog";
 import * as eventsApi from "../api/events";
 import CalendarView from "../components/CalendarView";
 import FilterBar, { EMPTY_FILTERS } from "../components/FilterBar";
+import InstagramPostCard from "../components/InstagramPostCard";
 import ListView from "../components/ListView";
 import ManualEventModal from "../components/ManualEventModal";
 import ViewToggle from "../components/ViewToggle";
@@ -39,6 +40,7 @@ export default function CalendarPage() {
   const [calendarRangeEnd, setCalendarRangeEnd] = useState(null);
   const [saved, setSaved] = useState([]);
   const [manual, setManual] = useState([]);
+  const [posts, setPosts] = useState([]);
   // Only gates the very first paint — re-fetches triggered by filter/sort/
   // range changes must NOT flip this back to true, or they'd unmount
   // <CalendarView>, wiping out FullCalendar's own navigation state (it
@@ -114,6 +116,7 @@ export default function CalendarPage() {
   useEffect(() => {
     getGenres().then(setGenres);
     loadSaved();
+    eventsApi.getInstagramPosts().then(setPosts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -178,9 +181,16 @@ export default function CalendarPage() {
           >
             Saved
           </button>
+          <button
+            type="button"
+            className={tab === "updates" ? "active" : ""}
+            onClick={() => setTab("updates")}
+          >
+            Updates{posts.length > 0 && ` (${posts.length})`}
+          </button>
         </div>
 
-        <ViewToggle view={view} onChange={changeView} />
+        {tab !== "updates" && <ViewToggle view={view} onChange={changeView} />}
 
         {tab === "for-you" && (
           <select value={sort} onChange={(e) => setSort(e.target.value)} className="sort-select">
@@ -203,7 +213,17 @@ export default function CalendarPage() {
         />
       )}
 
-      {initialLoading ? (
+      {tab === "updates" ? (
+        <div className="instagram-post-feed">
+          {posts.length === 0 ? (
+            <p className="empty-state">
+              No posts yet. Watch a page from your <Link to="/profile">profile</Link>.
+            </p>
+          ) : (
+            posts.map((post) => <InstagramPostCard key={post.id} post={post} />)
+          )}
+        </div>
+      ) : initialLoading ? (
         <p className="empty-state">Loading your lineup…</p>
       ) : view === "calendar" ? (
         <CalendarView

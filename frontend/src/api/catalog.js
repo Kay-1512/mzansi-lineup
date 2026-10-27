@@ -55,3 +55,20 @@ export async function searchArtists(query) {
   const { data } = await client.get("/artists/search/", { params: { q: query } });
   return data.results;
 }
+
+export async function getWatchedInstagramPages() {
+  const { data } = await client.get("/instagram-pages/");
+  return data;
+}
+
+export async function addWatchedInstagramPage(handle, feedUrl) {
+  const { data } = await client.post("/instagram-pages/", {
+    handle,
+    feed_url: feedUrl,
+  });
+  return data;
+}
+
+export async function removeWatchedInstagramPage(id) {
+  await client.delete(`/instagram-pages/${id}/`);
+}
