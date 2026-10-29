@@ -312,8 +312,12 @@ This repo includes a [`render.yaml`](render.yaml) Blueprint.
 Two things worth knowing about what you'll see once it's live:
 
 - **Free-tier web services spin down after 15 minutes idle** — the first
-  request after a quiet spell takes a few seconds to wake up. Not fixable
-  without a paid plan; nothing to do here.
+  request after a quiet spell pays a full cold-start boot (seen live:
+  15-20s, not just "a few seconds"). [`keep-warm.yml`](.github/workflows/keep-warm.yml)
+  pings `/healthz/` every 10 minutes so the service never sits idle long
+  enough to sleep — no repo secrets needed, it just hits the public health
+  check. A real paid plan is still the only fix if you want it to survive
+  GitHub Actions itself having a bad day.
 - **Every DB-touching endpoint was taking 3-5 seconds even when warm** the
   first time this got deployed — not a cold start (DB-free endpoints like
   `/healthz/` stayed under 1s), and not just the first request after idle

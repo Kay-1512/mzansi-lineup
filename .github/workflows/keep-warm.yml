@@ -1,0 +1,20 @@
+name: Keep API warm
+
+# Render's free tier spins the web service down after 15 minutes idle — the
+# next request then pays a full cold-start boot (seen live: ~15-20s, not
+# just the "few seconds" of a typical cold start) on top of normal latency.
+# Pinging /healthz/ well inside that window keeps it from ever going idle
+# long enough to sleep. Every 10 minutes nominal, not 14-15, because GitHub
+# Actions schedules are best-effort and can slip by a few minutes during
+# high load — 10 leaves margin so an actual gap still lands under 15.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /healthz/
+        run: curl -sf https://mzansi-lineup-api.onrender.com/healthz/
